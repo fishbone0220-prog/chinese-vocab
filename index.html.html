@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>汉语生词智能互动学习与自测站 (支持自主导入/多单元管理)</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #eff6ff;
+      --accent: #f59e0b;
+      --success: #10b981;
+      --danger: #ef4444;
+      --text-main: #1f2937;
+      --text-muted: #6b7280;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e5e7eb;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    body { background-color: var(--bg); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; }
+    
+    header { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; padding: 20px 16px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); position: relative; }
+    header h1 { font-size: 1.5rem; margin-bottom: 6px; }
+    .header-sub { opacity: 0.95; font-size: 0.9rem; display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    .lesson-badge { background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 0.85rem; }
+
+    .nav-tabs { display: flex; justify-content: center; background: white; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; overflow-x: auto; }
+    .tab-btn { padding: 13px 20px; border: none; background: none; font-size: 0.95rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.2s; border-bottom: 3px solid transparent; white-space: nowrap; }
+    .tab-btn:hover { color: var(--primary); }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    main { max-width: 920px; width: 100%; margin: 20px auto; padding: 0 16px; flex: 1; }
+    .view-section { display: none; }
+    .view-section.active { display: block; }
+
+    /* Empty state */
+    .empty-prompt-box { background: white; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 48px 24px; text-align: center; max-width: 520px; margin: 20px auto; }
+    .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+    .empty-title { font-size: 1.25rem; font-weight: bold; color: #1e293b; margin-bottom: 8px; }
+    .empty-desc { font-size: 0.95rem; color: #64748b; margin-bottom: 24px; line-height: 1.5; }
+
+    /* Flashcard View */
+    .deck-container { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+    .progress-bar-container { width: 100%; max-width: 480px; background: #e5e7eb; height: 8px; border-radius: 999px; overflow: hidden; }
+    .progress-bar { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
+    .deck-info { font-size: 0.9rem; color: var(--text-muted); display: flex; justify-content: space-between; width: 100%; max-width: 480px; }
+
+    .flashcard { width: 100%; max-width: 480px; height: 320px; perspective: 1000px; cursor: pointer; user-select: none; }
+    .flashcard-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); transform-style: preserve-3d; border-radius: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04); }
+    .flashcard.flipped .flashcard-inner { transform: rotateY(180deg); }
+    .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 20px; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 24px; background: white; border: 1px solid #e2e8f0; }
+    .card-back { transform: rotateY(180deg); background: linear-gradient(145deg, #f8fafc, #ffffff); }
+
+    .badge-pos { background: #dbeafe; color: #1e40af; font-size: 0.8rem; padding: 4px 12px; border-radius: 999px; font-weight: 600; margin-bottom: 12px; }
+    .word-text { font-size: 3.2rem; font-weight: bold; color: #111827; margin-bottom: 6px; letter-spacing: 1px; }
+    .pinyin-text { font-size: 1.35rem; color: #4b5563; }
+    .audio-btn { margin-top: 14px; background: #f3f4f6; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.85rem; color: #374151; display: inline-flex; align-items: center; gap: 6px; transition: background 0.2s; }
+    .audio-btn:hover { background: #e5e7eb; }
+    .hint-tap { font-size: 0.75rem; color: #9ca3af; margin-top: 14px; }
+
+    .meaning-text { font-size: 1.3rem; font-weight: 600; color: #1f2937; margin-bottom: 14px; }
+    .example-box { background: #eff6ff; border-radius: 12px; padding: 14px; width: 100%; text-align: left; }
+    .example-zh { font-size: 1rem; color: #1e3a8a; font-weight: 500; margin-bottom: 4px; }
+    .example-en { font-size: 0.85rem; color: #4b5563; }
+
+    .deck-controls { display: flex; gap: 12px; align-items: center; justify-content: center; width: 100%; flex-wrap: wrap; }
+    .btn-ctrl { background: white; border: 1px solid #d1d5db; padding: 10px 18px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+    .btn-ctrl:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+    .btn-flip { background: var(--primary); color: white; border: none; }
+    .btn-flip:hover { background: var(--primary-hover); color: white; }
+
+    /* Word List View */
+    .search-filter { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .search-input { flex: 1; min-width: 220px; padding: 10px 16px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 0.95rem; }
+    .words-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+    .word-item { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; transition: transform 0.15s, box-shadow 0.15s; }
+    .word-item:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .item-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+    .item-word { font-size: 1.3rem; font-weight: bold; color: #111827; }
+    .item-pinyin { font-size: 0.9rem; color: #6b7280; margin-bottom: 6px; }
+    .item-pos { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 999px; }
+    .item-en { font-size: 0.85rem; color: #374151; margin-bottom: 8px; font-weight: 500; }
+    .item-ex { font-size: 0.8rem; color: #6b7280; border-top: 1px dashed #f3f4f6; padding-top: 6px; }
+
+    /* Quiz View */
+    .quiz-card { background: white; border-radius: 16px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); max-width: 600px; margin: 0 auto; }
+    .quiz-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 0.95rem; color: var(--text-muted); }
+    .quiz-question-box { text-align: center; margin-bottom: 24px; padding: 20px; background: #f8fafc; border-radius: 12px; }
+    .q-prompt { font-size: 0.9rem; color: #6b7280; margin-bottom: 8px; }
+    .q-main { font-size: 2.3rem; font-weight: bold; color: #111827; }
+    .q-sub { font-size: 1.15rem; color: #4b5563; margin-top: 4px; }
+    .quiz-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 20px; }
+    .opt-btn { background: white; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 14px 18px; text-align: left; font-size: 0.95rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between; }
+    .opt-btn:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-light); }
+    .opt-btn.correct { background: #dcfce7; border-color: var(--success); color: #166534; font-weight: bold; }
+    .opt-btn.wrong { background: #fee2e2; border-color: var(--danger); color: #991b1b; }
+    .quiz-feedback { text-align: center; min-height: 48px; font-weight: 500; font-size: 0.95rem; margin-bottom: 12px; }
+    .btn-next-q { width: 100%; background: var(--primary); color: white; border: none; padding: 12px; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .btn-next-q:hover { background: var(--primary-hover); }
+
+    /* Upload & Management View */
+    .manager-card { background: white; border-radius: 16px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 24px; border: 1px solid var(--border); }
+    .manager-card h2 { font-size: 1.3rem; color: #111827; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .manager-card p { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 18px; line-height: 1.5; }
+    
+    .upload-zone { border: 2px dashed #93c5fd; background: #f0f7ff; border-radius: 14px; padding: 28px 16px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 20px; }
+    .upload-zone:hover { background: #e0f2fe; border-color: var(--primary); }
+    .upload-zone input { display: none; }
+    .upload-icon { font-size: 2.4rem; margin-bottom: 8px; }
+
+    .input-group { margin-bottom: 14px; }
+    .input-label { display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .text-input { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; }
+    .textarea-input { width: 100%; height: 160px; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-family: monospace; font-size: 0.88rem; line-height: 1.4; resize: vertical; }
+
+    .btn-action { background: var(--primary); color: white; border: none; padding: 11px 22px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-action:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .btn-danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+    .btn-danger:hover { background: #fecaca; }
+
+    .lesson-selector-bar { display: flex; justify-content: space-between; align-items: center; background: white; padding: 14px 18px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+    .select-dropdown { padding: 8px 14px; border-radius: 8px; border: 1px solid #d1d5db; font-size: 0.95rem; font-weight: 500; background: white; cursor: pointer; }
+
+    .format-guide { background: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 14px; margin-bottom: 18px; font-size: 0.85rem; color: #92400e; }
+    .format-guide pre { margin-top: 6px; background: white; padding: 8px; border-radius: 6px; overflow-x: auto; color: #1e293b; }
+
+    footer { text-align: center; padding: 20px; color: #9ca3af; font-size: 0.85rem; margin-top: auto; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1 id="site-title">汉语生词互动学习站</h1>
+    <div class="header-sub">
+      <span class="lesson-badge" id="current-lesson-name">暂未导入课程</span>
+      <span id="header-word-count">共 0 词</span>
+    </div>
+  </header>
+
+  <nav class="nav-tabs">
+    <button class="tab-btn active" id="tab-flashcard-btn" onclick="switchTab('flashcard')">🗂️ 记忆闪卡 (Cards)</button>
+    <button class="tab-btn" id="tab-words-btn" onclick="switchTab('words')">📖 词汇总览 (List)</button>
+    <button class="tab-btn" id="tab-quiz-btn" onclick="switchTab('quiz')">✍️ 课后自测 (Quiz)</button>
+    <button class="tab-btn" id="tab-upload-btn" onclick="switchTab('upload')">📤 上传/更换课程 (Upload)</button>
+  </nav>
+
+  <main>
+    <!-- Top Lesson Switcher bar -->
+    <div class="lesson-selector-bar" id="lesson-bar" style="display:none;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:0.9rem; font-weight:600; color:#4b5563;">切换单元：</span>
+        <select class="select-dropdown" id="lesson-select" onchange="changeLesson(this.value)"></select>
+      </div>
+      <div>
+        <button class="btn-ctrl" style="font-size:0.85rem; padding:6px 12px;" onclick="switchTab('upload')">➕ 导入新单元</button>
+      </div>
+    </div>
+
+    <!-- View 1: Flashcards -->
+    <section id="view-flashcard" class="view-section active">
+      <div id="deck-wrapper">
+        <div class="deck-container">
+          <div class="deck-info">
+            <span id="card-counter">0 / 0</span>
+            <span>点击卡片或按“翻转”查看背面</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="card-progress"></div>
+          </div>
+
+          <div class="flashcard" id="flashcard" onclick="flipCard()">
+            <div class="flashcard-inner">
+              <div class="card-face card-front">
+                <span class="badge-pos" id="card-pos">词汇</span>
+                <div class="word-text" id="card-word">等待导入</div>
+                <div class="pinyin-text" id="card-pinyin"></div>
+                <button class="audio-btn" id="audio-word-btn" onclick="speakCurrent(event)">🔊 朗读发音</button>
+                <div class="hint-tap">💡 点击任意处翻转查看英文释义与例句</div>
+              </div>
+              <div class="card-face card-back">
+                <div class="meaning-text" id="card-meaning">请先在“上传/更换课程”页面导入词汇</div>
+                <div class="example-box">
+                  <div class="example-zh" id="card-ex-zh"></div>
+                  <div class="example-en" id="card-ex-en"></div>
+                </div>
+                <button class="audio-btn" id="audio-ex-btn" onclick="speakExample(event)" style="margin-top:14px; display:none;">🔊 听例句发音</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="deck-controls">
+            <button class="btn-ctrl" onclick="prevCard()">⬅️ 上一个</button>
+            <button class="btn-ctrl btn-flip" onclick="flipCard()">🔄 翻转卡片</button>
+            <button class="btn-ctrl" onclick="nextCard()">下一个 ➡️</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty Prompt shown when no lesson is imported -->
+      <div id="empty-flashcard-prompt" class="empty-prompt-box" style="display:none;">
+        <div class="empty-icon">📂</div>
+        <div class="empty-title">当前尚无词汇</div>
+        <div class="empty-desc">本站所有词汇支持完全由您自主导入。<br>请点击下方按钮上传或粘贴您本周要学习的词汇表！</div>
+        <button class="btn-action" onclick="switchTab('upload')">📤 前往导入新单元词汇</button>
+      </div>
+    </section>
+
+    <!-- View 2: Word List -->
+    <section id="view-words" class="view-section">
+      <div class="search-filter">
+        <input type="text" class="search-input" id="search-input" placeholder="🔍 搜索汉字、拼音或英文释义..." oninput="filterWords()">
+      </div>
+      <div class="words-grid" id="words-grid"></div>
+    </section>
+
+    <!-- View 3: Quiz -->
+    <section id="view-quiz" class="view-section">
+      <div class="quiz-card">
+        <div class="quiz-header">
+          <span>练习进度: <strong id="quiz-progress-text">0 / 0</strong></span>
+          <span>当前得分: <strong id="quiz-score" style="color:var(--success)">0</strong></span>
+        </div>
+        <div class="quiz-question-box">
+          <div class="q-prompt" id="q-prompt">请选择以下词汇的正确中文含义：</div>
+          <div class="q-main" id="q-main">---</div>
+          <div class="q-sub" id="q-sub"></div>
+        </div>
+        <div class="quiz-options" id="quiz-options"></div>
+        <div class="quiz-feedback" id="quiz-feedback"></div>
+        <button class="btn-next-q" id="btn-next-q" style="display:none;" onclick="nextQuestion()">下一题 ➔</button>
+      </div>
+    </section>
+
+    <!-- View 4: Upload & Management -->
+    <section id="view-upload" class="view-section">
+      <div class="manager-card">
+        <h2>📤 手动导入新单元词汇</h2>
+        <p>支持直接选择生成的 <strong>.csv / .tsv / .txt</strong> 文本文件，或将词汇直接粘贴在下方。导入的数据保存在本地浏览器缓存中，学生可自由添加不同单元、随时切换练习！</p>
+
+        <!-- Method 1: File Upload -->
+        <div class="upload-zone" onclick="document.getElementById('file-upload-input').click()">
+          <div class="upload-icon">📁</div>
+          <strong style="color:var(--primary); font-size:1.05rem;">点击选择本地 CSV / TSV / TXT 文件</strong>
+          <p style="font-size:0.85rem; color:#6b7280; margin-top:6px;">直接导入已下载的词汇表（如：Unit9_Web_Import.csv）</p>
+          <input type="file" id="file-upload-input" accept=".csv,.tsv,.txt" onchange="handleFileUpload(event)">
+        </div>
+
+        <!-- Method 2: Manual Text Paste -->
+        <div class="input-group">
+          <label class="input-label">课程/单元名称：</label>
+          <input type="text" class="text-input" id="new-lesson-title" placeholder="例如：第九单元 做饭与烹饪">
+        </div>
+
+        <div class="format-guide">
+          💡 <strong>支持的标准导入格式：</strong>
+          <pre>格式一（CSV/逗号隔开）：生词 [拼音] (词性),英文释义,中文例句,例句英文
+格式二（TSV/制表符隔开）：生词 [拼音] (词性) [Tab] 英文释义 [Tab] 中文例句 [Tab] 例句英文
+示例：
+炒 [chǎo] (动),to stir-fry,今天晚上我们炒一个西红柿鸡蛋。,Tonight let's stir-fry eggs with tomatoes.
+鸡蛋 [jīdàn] (名),egg,冰箱里还有几个新鲜的鸡蛋。,There are still a few fresh eggs in the refrigerator.</pre>
+        </div>
+
+        <div class="input-group">
+          <label class="input-label">或直接在此粘贴词汇内容：</label>
+          <textarea class="textarea-input" id="paste-input" placeholder="将词汇内容直接粘贴到这里..."></textarea>
+        </div>
+
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <button class="btn-action" onclick="saveNewLesson()">💾 导入并开始学习此单元</button>
+        </div>
+      </div>
+
+      <!-- Management list -->
+      <div class="manager-card">
+        <h2>📚 已保存的课程库</h2>
+        <div id="saved-lessons-list" style="margin-top:14px; display:flex; flex-direction:column; gap:10px;"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    汉语教学互动学习小站 · 完全自主导入与离线缓存
+  </footer>
+
+  <script>
+    // Storage keys
+    var STORAGE_KEY = 'CHINESE_VOCAB_LESSONS_STORE_V2';
+    var CURRENT_LESSON_KEY = 'CHINESE_CURRENT_LESSON_ID_V2';
+
+    var lessonsStore = {};
+    var currentLessonId = '';
+    var currentVocabList = [];
+
+    var currentCardIndex = 0;
+    var isFlipped = false;
+
+    // Initialize Store (NO default hardcoded Unit 10)
+    function initStore() {
+      try {
+        var stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          lessonsStore = JSON.parse(stored);
+        }
+      } catch(e) {
+        lessonsStore = {};
+      }
+
+      var activeId = localStorage.getItem(CURRENT_LESSON_KEY);
+      if (activeId && lessonsStore[activeId]) {
+        currentLessonId = activeId;
+      } else {
+        var keys = Object.keys(lessonsStore);
+        currentLessonId = keys.length > 0 ? keys[0] : '';
+      }
+      applyCurrentLesson();
+    }
+
+    function saveStore() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(lessonsStore));
+      } catch (e) {
+        console.error("Local storage error:", e);
+      }
+    }
+
+    function applyCurrentLesson() {
+      var lesson = lessonsStore[currentLessonId];
+      var lessonBar = document.getElementById('lesson-bar');
+
+      if (!lesson || !lesson.words || lesson.words.length === 0) {
+        currentVocabList = [];
+        currentCardIndex = 0;
+        document.getElementById('site-title').innerText = '汉语生词互动学习站';
+        document.getElementById('current-lesson-name').innerText = '暂无课程 (请导入)';
+        document.getElementById('header-word-count').innerText = '共 0 词';
+        lessonBar.style.display = 'none';
+
+        document.getElementById('deck-wrapper').style.display = 'none';
+        document.getElementById('empty-flashcard-prompt').style.display = 'block';
+
+        renderWordGrid([]);
+        updateSavedLessonsList();
+        return;
+      }
+
+      lessonBar.style.display = 'flex';
+      document.getElementById('deck-wrapper').style.display = 'block';
+      document.getElementById('empty-flashcard-prompt').style.display = 'none';
+
+      currentVocabList = lesson.words;
+      currentCardIndex = 0;
+
+      document.getElementById('site-title').innerText = lesson.title + ' · 生词学习站';
+      document.getElementById('current-lesson-name').innerText = '当前课程：' + lesson.title;
+      document.getElementById('header-word-count').innerText = '共 ' + currentVocabList.length + ' 词';
+
+      updateLessonDropdown();
+      updateSavedLessonsList();
+
+      renderCard();
+      renderWordGrid(currentVocabList);
+    }
+
+    function updateLessonDropdown() {
+      var select = document.getElementById('lesson-select');
+      var html = '';
+      for (var k in lessonsStore) {
+        var l = lessonsStore[k];
+        var isSel = (l.id === currentLessonId) ? 'selected' : '';
+        html += '<option value="' + l.id + '" ' + isSel + '>' + l.title + ' (' + l.words.length + '词)</option>';
+      }
+      select.innerHTML = html;
+    }
+
+    function updateSavedLessonsList() {
+      var container = document.getElementById('saved-lessons-list');
+      var keys = Object.keys(lessonsStore);
+      if (keys.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:24px; color:#9ca3af; font-size:0.9rem;">暂无保存的课程，请在上方上传或粘贴词汇导入。</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        var l = lessonsStore[k];
+        var isCurrent = (l.id === currentLessonId);
+        var badge = isCurrent ? '<span style="background:#dcfce7; color:#166534; font-size:0.75rem; padding:2px 8px; border-radius:999px; margin-left:8px; font-weight:600;">当前学习中</span>' : '';
+        var switchBtn = !isCurrent ? '<button class="btn-ctrl" style="font-size:0.85rem; padding:5px 12px;" onclick="changeLesson(\'' + l.id + '\')">切换到此单元</button>' : '';
+        var delBtn = '<button class="btn-ctrl btn-danger" style="font-size:0.85rem; padding:5px 10px;" onclick="deleteLesson(\'' + l.id + '\')">删除</button>';
+
+        html += '<div style="display:flex; justify-content:space-between; align-items:center; background:#f9fafb; padding:12px 16px; border-radius:10px; border:1px solid #e5e7eb;">' +
+                  '<div>' +
+                    '<strong style="color:#1f2937;">' + l.title + '</strong>' +
+                    '<span style="font-size:0.85rem; color:#6b7280; margin-left:8px;">(' + l.words.length + ' 词)</span>' +
+                    badge +
+                  '</div>' +
+                  '<div style="display:flex; gap:8px;">' + switchBtn + delBtn + '</div>' +
+                '</div>';
+      }
+      container.innerHTML = html;
+    }
+
+    function changeLesson(id) {
+      if (!lessonsStore[id]) return;
+      currentLessonId = id;
+      try {
+        localStorage.setItem(CURRENT_LESSON_KEY, id);
+      } catch(e) {}
+      applyCurrentLesson();
+    }
+
+    function deleteLesson(id) {
+      if (confirm('确定要删除这套课程吗？')) {
+        delete lessonsStore[id];
+        saveStore();
+        var keys = Object.keys(lessonsStore);
+        currentLessonId = keys.length > 0 ? keys[0] : '';
+        try {
+          localStorage.setItem(CURRENT_LESSON_KEY, currentLessonId);
+        } catch(e) {}
+        applyCurrentLesson();
+      }
+    }
+
+    // --- Parser for TSV / CSV / Text ---
+    function parseCustomText(text) {
+      var lines = text.split(/\r\n|\r|\n/);
+      var parsed = [];
+      var idCounter = 1;
+
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) continue;
+        if (line.indexOf("生词") !== -1 && (line.indexOf("拼音") !== -1 || line.indexOf("释义") !== -1 || line.indexOf("Front") !== -1)) {
+          continue;
+        }
+
+        var parts = line.split('\t');
+        if (parts.length < 2) {
+          parts = line.split(',');
+        }
+
+        if (parts.length >= 2) {
+          var front = parts[0].trim();
+          var back = parts[1].trim();
+          var exZh = parts[2] ? parts[2].trim() : '';
+          var exEn = parts[3] ? parts[3].trim() : '';
+
+          var word = front;
+          var pinyin = '';
+          var pos = '';
+
+          var pinyinMatch = front.match(/\[(.*?)\]/);
+          if (pinyinMatch) {
+            pinyin = pinyinMatch[1];
+            word = word.replace(pinyinMatch[0], '').trim();
+          }
+
+          var posMatch = front.match(/\((.*?)\)/);
+          if (posMatch) {
+            pos = posMatch[1];
+            word = word.replace(posMatch[0], '').trim();
+          }
+
+          var en = back;
+          if (back.indexOf('<small>例句:') !== -1 || back.indexOf('例句:') !== -1) {
+            var splitEx = back.split(/<br\s*\/?>|\r\n|\r|\n/);
+            en = splitEx[0].replace(/<[^>]+>/g, '').trim();
+            var exLine = splitEx.slice(1).join(' ').replace(/<[^>]+>/g, '').trim();
+            if (exLine && !exZh) {
+              exZh = exLine;
+            }
+          }
+
+          parsed.push({
+            id: idCounter++,
+            word: word || front,
+            pinyin: pinyin || '',
+            pos: pos || '生词',
+            en: en || '',
+            exZh: exZh || '',
+            exEn: exEn || ''
+          });
+        }
+      }
+      return parsed;
+    }
+
+    function handleFileUpload(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+
+      var reader = new FileReader();
+      reader.onload = function(evt) {
+        var content = evt.target.result;
+        document.getElementById('paste-input').value = content;
+        var autoTitle = file.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
+        document.getElementById('new-lesson-title').value = autoTitle;
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    function saveNewLesson() {
+      var title = document.getElementById('new-lesson-title').value.trim() || ('课程 ' + new Date().toLocaleDateString());
+      var content = document.getElementById('paste-input').value.trim();
+
+      if (!content) {
+        alert("请先上传文件或粘贴词汇内容！");
+        return;
+      }
+
+      var words = parseCustomText(content);
+      if (words.length === 0) {
+        alert("未能识别到有效的词汇数据，请检查分隔符是否为逗号(CSV)或制表符(Tab)！");
+        return;
+      }
+
+      var newId = 'lesson_' + Date.now();
+      lessonsStore[newId] = {
+        id: newId,
+        title: title,
+        words: words
+      };
+      saveStore();
+      changeLesson(newId);
+
+      document.getElementById('new-lesson-title').value = '';
+      document.getElementById('paste-input').value = '';
+      document.getElementById('file-upload-input').value = '';
+      alert('🎉 成功导入「' + title + '」共 ' + words.length + ' 个词汇！');
+      switchTab('flashcard');
+    }
+
+    // --- Flashcard Logic ---
+    function renderCard() {
+      if (currentVocabList.length === 0) {
+        document.getElementById('card-word').innerText = "等待导入";
+        document.getElementById('card-pinyin').innerText = "";
+        document.getElementById('card-pos').innerText = "提示";
+        document.getElementById('card-meaning').innerText = "请在“上传/更换课程”页面导入词汇";
+        document.getElementById('card-ex-zh').innerText = "";
+        document.getElementById('card-ex-en').innerText = "";
+        document.getElementById('audio-ex-btn').style.display = "none";
+        document.getElementById('card-counter').innerText = "0 / 0";
+        document.getElementById('card-progress').style.width = "0%";
+        return;
+      }
+      var item = currentVocabList[currentCardIndex];
+      document.getElementById('card-pos').innerText = item.pos || '生词';
+      document.getElementById('card-word').innerText = item.word;
+      document.getElementById('card-pinyin').innerText = item.pinyin || '';
+      document.getElementById('card-meaning').innerText = item.en || '无释义';
+      document.getElementById('card-ex-zh').innerText = item.exZh || '';
+      document.getElementById('card-ex-en').innerText = item.exEn || '';
+      document.getElementById('audio-ex-btn').style.display = item.exZh ? "inline-flex" : "none";
+      document.getElementById('card-counter').innerText = (currentCardIndex + 1) + ' / ' + currentVocabList.length;
+      document.getElementById('card-progress').style.width = (((currentCardIndex + 1) / currentVocabList.length) * 100) + '%';
+      
+      var card = document.getElementById('flashcard');
+      card.classList.remove('flipped');
+      isFlipped = false;
+    }
+
+    function flipCard() {
+      if (currentVocabList.length === 0) return;
+      var card = document.getElementById('flashcard');
+      isFlipped = !isFlipped;
+      if (isFlipped) {
+        card.classList.add('flipped');
+      } else {
+        card.classList.remove('flipped');
+      }
+    }
+
+    function nextCard() {
+      if (currentVocabList.length === 0) return;
+      currentCardIndex = (currentCardIndex + 1) % currentVocabList.length;
+      renderCard();
+    }
+
+    function prevCard() {
+      if (currentVocabList.length === 0) return;
+      currentCardIndex = (currentCardIndex - 1 + currentVocabList.length) % currentVocabList.length;
+      renderCard();
+    }
+
+    function speakText(text) {
+      if ('speechSynthesis' in window && text) {
+        window.speechSynthesis.cancel();
+        var utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        utterance.rate = 0.85;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    function speakCurrent(e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      if (currentVocabList[currentCardIndex]) {
+        speakText(currentVocabList[currentCardIndex].word);
+      }
+    }
+
+    function speakExample(e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      if (currentVocabList[currentCardIndex] && currentVocabList[currentCardIndex].exZh) {
+        speakText(currentVocabList[currentCardIndex].exZh);
+      }
+    }
+
+    // --- Word List View ---
+    function renderWordGrid(list) {
+      var container = document.getElementById('words-grid');
+      if (list.length === 0) {
+        container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:48px 16px; color:#9ca3af;">📭 当前暂无词汇，请在“上传/更换课程”中导入新词</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        var exHtml = item.exZh ? '<div class="item-ex">' + item.exZh + '</div>' : '';
+        html += '<div class="word-item">' +
+                  '<div class="item-header">' +
+                    '<span class="item-word">' + item.word + '</span>' +
+                    '<span class="item-pos">' + (item.pos || '生词') + '</span>' +
+                  '</div>' +
+                  '<div class="item-pinyin">' + item.pinyin + '</div>' +
+                  '<div class="item-en">' + item.en + '</div>' +
+                  exHtml +
+                '</div>';
+      }
+      container.innerHTML = html;
+    }
+
+    function filterWords() {
+      var q = document.getElementById('search-input').value.trim().toLowerCase();
+      var filtered = [];
+      for (var i = 0; i < currentVocabList.length; i++) {
+        var item = currentVocabList[i];
+        if (item.word.toLowerCase().indexOf(q) !== -1 ||
+            item.pinyin.toLowerCase().indexOf(q) !== -1 ||
+            item.en.toLowerCase().indexOf(q) !== -1) {
+          filtered.push(item);
+        }
+      }
+      renderWordGrid(filtered);
+    }
+
+    // --- Quiz Logic ---
+    var quizQuestions = [];
+    var currentQIndex = 0;
+    var score = 0;
+
+    function initQuiz() {
+      if (currentVocabList.length < 4) {
+        document.getElementById('quiz-feedback').innerHTML = '<p style="color:var(--accent); font-weight:bold;">⚠️ 当前单元词汇不足 4 个，无法生成多选题测试。请先在“上传/更换课程”中导入词汇！</p>';
+        document.getElementById('quiz-options').innerHTML = '';
+        document.getElementById('q-main').innerText = '词汇不足';
+        document.getElementById('q-sub').innerText = '';
+        document.getElementById('btn-next-q').style.display = 'none';
+        return;
+      }
+
+      var shuffled = currentVocabList.slice().sort(function() { return 0.5 - Math.random(); });
+      var qCount = Math.min(10, shuffled.length);
+      quizQuestions = [];
+
+      for (var i = 0; i < qCount; i++) {
+        var target = shuffled[i];
+        var others = currentVocabList.filter(function(item) { return item.id !== target.id; });
+        var wrong = others.sort(function() { return 0.5 - Math.random(); }).slice(0, 3);
+        var options = [target].concat(wrong).sort(function() { return 0.5 - Math.random(); });
+        quizQuestions.push({ target: target, options: options });
+      }
+
+      currentQIndex = 0;
+      score = 0;
+      document.getElementById('quiz-score').innerText = score;
+      renderQuestion();
+    }
+
+    function renderQuestion() {
+      if (currentQIndex >= quizQuestions.length) {
+        document.getElementById('quiz-feedback').innerHTML = '<h3 style="color:var(--primary);margin-bottom:8px;">🎉 练习完成！</h3>得分: <strong>' + score + ' / ' + (quizQuestions.length * 10) + '</strong> 分！';
+        document.getElementById('quiz-options').innerHTML = '';
+        document.getElementById('q-main').innerText = '太棒了！';
+        document.getElementById('q-sub').innerText = '点击下方重新开始';
+        var nextBtn = document.getElementById('btn-next-q');
+        nextBtn.innerText = '🔄 再练一次';
+        nextBtn.style.display = 'block';
+        nextBtn.onclick = initQuiz;
+        return;
+      }
+
+      var q = quizQuestions[currentQIndex];
+      document.getElementById('quiz-progress-text').innerText = (currentQIndex + 1) + ' / ' + quizQuestions.length;
+      document.getElementById('q-main').innerText = q.target.word;
+      document.getElementById('q-sub').innerText = q.target.pinyin || '';
+      document.getElementById('quiz-feedback').innerText = '';
+      document.getElementById('btn-next-q').style.display = 'none';
+
+      var optContainer = document.getElementById('quiz-options');
+      var html = '';
+      for (var i = 0; i < q.options.length; i++) {
+        var opt = q.options[i];
+        html += '<button class="opt-btn" onclick="checkAnswer(' + opt.id + ', ' + q.target.id + ', this)">' +
+                  '<span>' + opt.en + '</span>' +
+                '</button>';
+      }
+      optContainer.innerHTML = html;
+    }
+
+    function checkAnswer(selectedId, correctId, btn) {
+      var allBtns = document.querySelectorAll('.opt-btn');
+      allBtns.forEach(function(b) { b.disabled = true; });
+      var isCorrect = (selectedId === correctId);
+      var feedback = document.getElementById('quiz-feedback');
+
+      if (isCorrect) {
+        btn.classList.add('correct');
+        feedback.innerHTML = '<span style="color:var(--success);">✅ 回答正确！很棒！</span>';
+        score += 10;
+        document.getElementById('quiz-score').innerText = score;
+      } else {
+        btn.classList.add('wrong');
+        feedback.innerHTML = '<span style="color:var(--danger);">❌ 选错了，继续加油！</span>';
+        allBtns.forEach(function(b, idx) {
+          if (quizQuestions[currentQIndex].options[idx].id === correctId) {
+            b.classList.add('correct');
+          }
+        });
+      }
+      var nextBtn = document.getElementById('btn-next-q');
+      nextBtn.innerText = '下一题 ➔';
+      nextBtn.onclick = nextQuestion;
+      nextBtn.style.display = 'block';
+    }
+
+    function nextQuestion() {
+      currentQIndex++;
+      renderQuestion();
+    }
+
+    // --- Tab Switching ---
+    function switchTab(tabId) {
+      var tabBtns = document.querySelectorAll('.tab-btn');
+      var sections = document.querySelectorAll('.view-section');
+
+      tabBtns.forEach(function(b) { b.classList.remove('active'); });
+      sections.forEach(function(s) { s.classList.remove('active'); });
+      
+      var targetTabBtn = document.getElementById('tab-' + tabId + '-btn');
+      if (targetTabBtn) targetTabBtn.classList.add('active');
+
+      var targetSection = document.getElementById('view-' + tabId);
+      if (targetSection) targetSection.classList.add('active');
+
+      if (tabId === 'quiz') {
+        initQuiz();
+      } else if (tabId === 'flashcard') {
+        renderCard();
+      } else if (tabId === 'words') {
+        renderWordGrid(currentVocabList);
+      }
+    }
+
+    // Run on startup
+    window.addEventListener('DOMContentLoaded', function() {
+      initStore();
+    });
+  </script>
+</body>
+</html>
