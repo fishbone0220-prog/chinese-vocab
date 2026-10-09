@@ -1449,80 +1449,150 @@
       renderCard();
     }
 
-    // --- 极速双模发音引擎 (在线高清真人原音 + 本地语音合成兜底) ---
+    // --- 全平台通用无缝发音引擎 (完美兼容微信/各大手机浏览器/无中文语音包设备) ---
     var ttsAudio = new Audio();
+    var cachedVoices = [];
     var activeUtterance = null;
+    var audioUnlocked = false;
 
-    function speakText(text) {
-      if (!text) return;
-      var cleanText = text.trim();
-      if (!cleanText) return;
+    // 页面首次任意触碰时解锁移动端音频播放通道 (iOS/Android 自动化策略解锁)
+    function unlockAudioContext() {
+      if (audioUnlocked) return;
+      ttsAudio.load();
+      audioUnlocked = true;
+    }
+    window.addEventListener('touchstart', unlockAudioContext, { once: true, passive: true });
+    window.addEventListener('click', unlockAudioContext, { once: true, passive: true });
 
-      // 方案 1 (优先)：通过 HTML5 Audio 播放在线标准普通话真人发音
-      // 特点：完美兼容微信内置浏览器、iOS Safari、安卓各大浏览器，不受本地无中文语音包限制
-      try {
-        var audioUrl = 'https://dict.youdao.com/dictvoice?audio=' + encodeURIComponent(cleanText) + '&le=zh';
-        ttsAudio.pause();
-        ttsAudio.currentTime = 0;
-        ttsAudio.src = audioUrl;
-
-        var playPromise = ttsAudio.play();
-        if (playPromise !== undefined) {
-          playPromise.then(function() {
-            // 播放成功
-          }).catch(function(err) {
-            // 若在线音频受阻（例如断网或自动播放拦截），无缝切换至方案 2：系统底层 SpeechSynthesis
-            speakWithSpeechSynthesis(cleanText);
-          });
+    function initSpeechEngine() {
+      if ('speechSynthesis' in window) {
+        cachedVoices = window.speechSynthesis.getVoices();
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+          window.speechSynthesis.onvoiceschanged = function() {
+            cachedVoices = window.speechSynthesis.getVoices();
+          };
         }
-      } catch (e) {
-        speakWithSpeechSynthesis(cleanText);
       }
     }
 
-    // 方案 2 (本地兜底)：Web Speech API (彻底修复 iOS/Chrome 静音与挂起 Bug)
-    function speakWithSpeechSynthesis(text) {
-      if (!('speechSynthesis' in window)) {
-        alert('您的浏览器暂不支持发音，建议在手机 Safari 或 Chrome 中打开！');
-        return;
-      }
+    // 检测本地是否有可用的系统中文语音包
+    function hasLocalChineseVoice() {
+      if (!('speechSynthesis' in window)) return false;
+      var voices = cachedVoices && cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();
+      if (!voices || voices.length === 0) return false;
+      return voices.some(function(v) {
+        var lang = (v.lang || '').toLowerCase();
+        var name = (v.name || '').toLowerCase();
+        return lang.indexOf('zh') === 0 || lang.indexOf('cmn') !== -1 || name.indexOf('chinese') !== -1;
+      });
+    }
 
-      try {
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        }
-        window.speechSynthesis.cancel();
+    function getLocalChineseVoice() {
+      var voices = cachedVoices && cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();
+      if (!voices || voices.length === 0) return null;
+      return voices.find(function(v) {
+        var lang = (v.lang || '').toLowerCase();
+        return lang === 'zh-cn' || lang === 'zh_cn';
+      }) || voices.find(function(v) {
+        var lang = (v.lang || '').toLowerCase();
+        return lang.indexOf('zh') === 0 || lang.indexOf('cmn') !== -1;
+      }) || null;
+    }
 
-        var utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        utterance.rate = 0.85; // 慢速清晰发音，适合二语习得
-        utterance.pitch = 1.0;
+    // 统一发音主调度：多通道智能容灾（免除必须 Safari 或 Chrome 才能发音的限制）
+    function speakText(text) {
+      if (!text) return;
+      // 清洗文本中的多余换行与特殊排版符号
+      var cleanText = text.replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!cleanText) return;
 
-        // 绑定到全局变量，防止 Chrome/Safari 垃圾回收机制提前销毁导致播放中断
-        activeUtterance = utterance;
+      // 提取纯朗读文本（生词、句子均可直接发音，去除句末异常标点干扰）
+      var spokenQuery = cleanText.replace(/[。，！？、“”‘’；：]/g, ' ').trim();
+      var encoded = encodeURIComponent(spokenQuery || cleanText);
 
-        // 尝试匹配本地系统中文女声/标准发音人
-        var voices = window.speechSynthesis.getVoices();
-        if (voices && voices.length > 0) {
-          var zhVoice = voices.find(function(v) {
-            return v.lang === 'zh-CN' || v.lang === 'zh_CN' || v.lang.indexOf('zh') !== -1 || v.name.indexOf('Chinese') !== -1;
-          });
+      // 云端高保真普通话音频源候选列表 (针对微信、UC、夸克、华为/小米内置浏览器等无系统语音包环境)
+      var audioSources = [
+        'https://dict.youdao.com/dictvoice?audio=' + encoded + '&le=zh',
+        'https://fanyi.baidu.com/gettts?lan=zh&text=' + encoded + '&spd=5&source=web',
+        'https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=' + encoded
+      ];
+      var currentSourceIdx = 0;
+
+      // 决策树：
+      // 1. 如果当前设备/浏览器有可靠的本地中文系统语音包 (如 Safari, 原生桌面 Chrome)，优先本地秒出声；
+      // 2. 如果是微信内置浏览器，或者手机系统没有安装中文语音包（大量安卓第三方浏览器常见），立即同步切云端原声音频流。
+      var isWeChat = /MicroMessenger/i.test(navigator.userAgent);
+      var canUseLocalSynth = !isWeChat && hasLocalChineseVoice();
+
+      if (canUseLocalSynth) {
+        try {
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+          window.speechSynthesis.cancel();
+
+          var utterance = new SpeechSynthesisUtterance(cleanText);
+          utterance.lang = 'zh-CN';
+          utterance.rate = 0.86;
+          utterance.pitch = 1.0;
+
+          var zhVoice = getLocalChineseVoice();
           if (zhVoice) {
             utterance.voice = zhVoice;
           }
+
+          activeUtterance = utterance;
+          utterance.onend = function() { activeUtterance = null; };
+          utterance.onerror = function() {
+            activeUtterance = null;
+            playWithCloudAudio();
+          };
+
+          window.speechSynthesis.speak(utterance);
+          return;
+        } catch (e) {
+          playWithCloudAudio();
+          return;
+        }
+      } else {
+        // 无本地中文包时，同步触发 HTML5 Audio 播放（绝不进入异步等待，确保手势凭据永不失效）
+        playWithCloudAudio();
+      }
+
+      function playWithCloudAudio() {
+        if (currentSourceIdx >= audioSources.length) {
+          // 所有云端源若不可用，最后尝试调用一次本地合成
+          tryFallbackSpeechSynth();
+          return;
         }
 
-        utterance.onend = function() {
-          activeUtterance = null;
-        };
-        utterance.onerror = function(e) {
-          console.warn('SpeechSynthesis error:', e);
-          activeUtterance = null;
+        ttsAudio.pause();
+        ttsAudio.currentTime = 0;
+        ttsAudio.src = audioSources[currentSourceIdx];
+
+        ttsAudio.onerror = function() {
+          currentSourceIdx++;
+          playWithCloudAudio();
         };
 
-        window.speechSynthesis.speak(utterance);
-      } catch (err) {
-        console.error('TTS Failed:', err);
+        var p = ttsAudio.play();
+        if (p !== undefined) {
+          p.catch(function(err) {
+            currentSourceIdx++;
+            playWithCloudAudio();
+          });
+        }
+      }
+
+      function tryFallbackSpeechSynth() {
+        if ('speechSynthesis' in window) {
+          try {
+            window.speechSynthesis.cancel();
+            var utt = new SpeechSynthesisUtterance(cleanText);
+            utt.lang = 'zh-CN';
+            window.speechSynthesis.speak(utt);
+          } catch (e) {}
+        }
       }
     }
 
@@ -1707,6 +1777,7 @@
     });
 
     window.addEventListener('DOMContentLoaded', function() {
+      initSpeechEngine();
       initStore();
     });
   </script>
