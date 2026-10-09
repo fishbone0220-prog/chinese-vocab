@@ -1449,13 +1449,80 @@
       renderCard();
     }
 
+    // --- 极速双模发音引擎 (在线高清真人原音 + 本地语音合成兜底) ---
+    var ttsAudio = new Audio();
+    var activeUtterance = null;
+
     function speakText(text) {
-      if ('speechSynthesis' in window && text) {
+      if (!text) return;
+      var cleanText = text.trim();
+      if (!cleanText) return;
+
+      // 方案 1 (优先)：通过 HTML5 Audio 播放在线标准普通话真人发音
+      // 特点：完美兼容微信内置浏览器、iOS Safari、安卓各大浏览器，不受本地无中文语音包限制
+      try {
+        var audioUrl = 'https://dict.youdao.com/dictvoice?audio=' + encodeURIComponent(cleanText) + '&le=zh';
+        ttsAudio.pause();
+        ttsAudio.currentTime = 0;
+        ttsAudio.src = audioUrl;
+
+        var playPromise = ttsAudio.play();
+        if (playPromise !== undefined) {
+          playPromise.then(function() {
+            // 播放成功
+          }).catch(function(err) {
+            // 若在线音频受阻（例如断网或自动播放拦截），无缝切换至方案 2：系统底层 SpeechSynthesis
+            speakWithSpeechSynthesis(cleanText);
+          });
+        }
+      } catch (e) {
+        speakWithSpeechSynthesis(cleanText);
+      }
+    }
+
+    // 方案 2 (本地兜底)：Web Speech API (彻底修复 iOS/Chrome 静音与挂起 Bug)
+    function speakWithSpeechSynthesis(text) {
+      if (!('speechSynthesis' in window)) {
+        alert('您的浏览器暂不支持发音，建议在手机 Safari 或 Chrome 中打开！');
+        return;
+      }
+
+      try {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
         window.speechSynthesis.cancel();
+
         var utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'zh-CN';
-        utterance.rate = 0.85;
+        utterance.rate = 0.85; // 慢速清晰发音，适合二语习得
+        utterance.pitch = 1.0;
+
+        // 绑定到全局变量，防止 Chrome/Safari 垃圾回收机制提前销毁导致播放中断
+        activeUtterance = utterance;
+
+        // 尝试匹配本地系统中文女声/标准发音人
+        var voices = window.speechSynthesis.getVoices();
+        if (voices && voices.length > 0) {
+          var zhVoice = voices.find(function(v) {
+            return v.lang === 'zh-CN' || v.lang === 'zh_CN' || v.lang.indexOf('zh') !== -1 || v.name.indexOf('Chinese') !== -1;
+          });
+          if (zhVoice) {
+            utterance.voice = zhVoice;
+          }
+        }
+
+        utterance.onend = function() {
+          activeUtterance = null;
+        };
+        utterance.onerror = function(e) {
+          console.warn('SpeechSynthesis error:', e);
+          activeUtterance = null;
+        };
+
         window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.error('TTS Failed:', err);
       }
     }
 
