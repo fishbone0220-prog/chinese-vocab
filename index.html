@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+  <meta name="referrer" content="no-referrer">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>汉语生词智能互动学习与自测站</title>
@@ -121,7 +122,7 @@
       box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
     }
 
-    /* Cascading Dropdowns Bar (册数选择 + 单元选择) */
+    /* 联动选择区域：册数下拉 + 多选单元框 */
     .dropdown-selectors-container {
       max-width: 900px;
       margin: 10px auto 0;
@@ -137,6 +138,7 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
+      position: relative;
     }
     .selector-item label {
       font-size: 0.76rem;
@@ -165,6 +167,128 @@
     .custom-select:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    /* 多选单元下拉菜单样式 */
+    .multiselect-wrapper {
+      position: relative;
+      width: 100%;
+    }
+    .multiselect-trigger {
+      width: 100%;
+      height: 38px;
+      padding: 0 10px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      background: #ffffff;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+    .multiselect-trigger:hover {
+      border-color: var(--primary);
+    }
+    .multiselect-trigger.active {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+    .trigger-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      text-align: left;
+    }
+    .arrow-icon {
+      font-size: 0.7rem;
+      color: #64748b;
+      transition: transform 0.2s;
+      margin-left: 6px;
+    }
+    .arrow-icon.rotated {
+      transform: rotate(180deg);
+    }
+    .multiselect-menu {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      box-shadow: var(--shadow-lg);
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .multiselect-menu.open {
+      display: flex;
+      animation: fadeIn 0.15s ease-out;
+    }
+    .multiselect-actions {
+      display: flex;
+      gap: 6px;
+      padding: 8px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+    }
+    .btn-batch {
+      flex: 1;
+      padding: 6px 4px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-batch:hover {
+      background: #f1f5f9;
+      border-color: var(--primary);
+    }
+    .btn-batch.primary {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+    .btn-batch.primary:hover {
+      background: var(--primary-hover);
+    }
+    .unit-checkbox-list {
+      overflow-y: auto;
+      max-height: 220px;
+      padding: 4px 0;
+    }
+    .unit-checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 500;
+      color: #334155;
+      user-select: none;
+      transition: background 0.12s;
+    }
+    .unit-checkbox-item:hover {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+    .unit-checkbox-item input[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+      cursor: pointer;
+      accent-color: var(--primary);
     }
 
     /* Navigation Tabs */
@@ -719,6 +843,10 @@
         height: 42px;
         font-size: 0.92rem;
       }
+      .multiselect-trigger {
+        height: 42px;
+        font-size: 0.92rem;
+      }
       .flashcard {
         height: 350px;
       }
@@ -767,7 +895,7 @@
       <button class="series-btn" id="btn-series-bct" onclick="switchSeries('bct')">📙 商务 BCT</button>
     </div>
 
-    <!-- 2级与3级：联动下拉菜单 -->
+    <!-- 2级与3级：联动选择器 -->
     <div class="dropdown-selectors-container">
       <div class="selector-item">
         <label for="book-select">📖 级别 / 册数：</label>
@@ -775,8 +903,21 @@
       </div>
 
       <div class="selector-item">
-        <label for="unit-select">📑 单元 / 课文：</label>
-        <select class="custom-select" id="unit-select" onchange="onUnitChange(this.value)"></select>
+        <label>📑 练习单元 (可勾选/多选/全选)：</label>
+        <div class="multiselect-wrapper" id="multiselect-wrapper">
+          <div class="multiselect-trigger" id="unit-select-trigger" onclick="toggleUnitDropdown(event)">
+            <span class="trigger-text" id="unit-select-text">加载单元中...</span>
+            <span class="arrow-icon" id="unit-arrow-icon">▼</span>
+          </div>
+          <div class="multiselect-menu" id="unit-multiselect-menu">
+            <div class="multiselect-actions">
+              <button type="button" class="btn-batch" onclick="selectAllUnits(true)">全选</button>
+              <button type="button" class="btn-batch" onclick="selectAllUnits(false)">清空</button>
+              <button type="button" class="btn-batch primary" onclick="confirmUnitSelection()">开始练习</button>
+            </div>
+            <div class="unit-checkbox-list" id="unit-checkbox-list"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -894,12 +1035,11 @@
   </main>
 
   <footer>
-    汉语教学智能互动学习小站 · 下拉联动 + 多端自适应（手机 / 平板 / 电脑）
+    汉语教学智能互动学习小站 · 多单元勾选 + 多端自适应（手机 / 平板 / 电脑）
   </footer>
 
   <script>
-    // 完整的 3 级教材层级数据树：
-    // 系列 (Series) -> 册数/级别 (Books 1-6) -> 单元课文 (Units)
+    // 完整的 3 级教材层级数据树
     var catalogTree = {
       'newtarget': {
         title: '新目标口语',
@@ -963,43 +1103,65 @@
         title: 'HSK 考级',
         books: {
           'hsk_1': {
-            title: 'HSK 1级',
+            title: 'HSK 1级 (150词)',
             units: [
-              { name: '第1部分 人称与日常', file: 'HSK1_Part1.csv' },
-              { name: '第2部分 数字与时间', file: 'HSK1_Part2.csv' }
+              { name: '第1单元 问候与人物 (Greetings & People)', file: 'HSK1_Unit1.csv' },
+              { name: '第2单元 时间与日期 (Time & Date)', file: 'HSK1_Unit2.csv' },
+              { name: '第3单元 地点与方位 (Places & Directions)', file: 'HSK1_Unit3.csv' },
+              { name: '第4单元 日常生活与饮食 (Daily Life & Food)', file: 'HSK1_Unit4.csv' },
+              { name: '第5单元 动作与状态 (Actions & States)', file: 'HSK1_Unit5.csv' }
             ]
           },
           'hsk_2': {
-            title: 'HSK 2级',
+            title: 'HSK 2级 (150词)',
             units: [
-              { name: '第1部分 动作与状态', file: 'HSK2_Part1.csv' },
-              { name: '第2部分 空间与方向', file: 'HSK2_Part2.csv' }
+              { name: '第1单元 身体与健康 (Body & Health)', file: 'HSK2_Unit1.csv' },
+              { name: '第2单元 运动与休闲 (Sports & Leisure)', file: 'HSK2_Unit2.csv' },
+              { name: '第3单元 交通与出行 (Transport & Travel)', file: 'HSK2_Unit3.csv' },
+              { name: '第4单元 购物与价格 (Shopping & Price)', file: 'HSK2_Unit4.csv' },
+              { name: '第5单元 情感与交流 (Feelings & Communication)', file: 'HSK2_Unit5.csv' }
             ]
           },
           'hsk_3': {
-            title: 'HSK 3级',
+            title: 'HSK 3级 (300词)',
             units: [
-              { name: '第1课 周末的打算', file: 'HSK3_L1.csv' },
-              { name: '第2课 他什么时候回来', file: 'HSK3_L2.csv' }
+              { name: '第1单元 校园与学习 (Campus & Study)', file: 'HSK3_Unit1.csv' },
+              { name: '第2单元 职场与工作 (Workplace & Work)', file: 'HSK3_Unit2.csv' },
+              { name: '第3单元 人际与交往 (Social Life)', file: 'HSK3_Unit3.csv' },
+              { name: '第4单元 环境与自然 (Environment & Nature)', file: 'HSK3_Unit4.csv' },
+              { name: '第5单元 兴趣与文化 (Hobbies & Culture)', file: 'HSK3_Unit5.csv' },
+              { name: '第6单元 生活与服务 (Living & Services)', file: 'HSK3_Unit6.csv' }
             ]
           },
           'hsk_4': {
-            title: 'HSK 4级',
+            title: 'HSK 4级 (600词)',
             units: [
-              { name: '第1课 简单的爱情', file: 'HSK4_L1.csv' },
-              { name: '第2课 真正的朋友', file: 'HSK4_L2.csv' }
+              { name: '第1单元 态度与情感 (Attitudes & Emotions)', file: 'HSK4_Unit1.csv' },
+              { name: '第2单元 社会与交往 (Society & Networking)', file: 'HSK4_Unit2.csv' },
+              { name: '第3单元 科技与发展 (Technology & Development)', file: 'HSK4_Unit3.csv' },
+              { name: '第4单元 文化与艺术 (Culture & Arts)', file: 'HSK4_Unit4.csv' },
+              { name: '第5单元 经济与商业 (Economy & Business)', file: 'HSK4_Unit5.csv' },
+              { name: '第6单元 哲理与思考 (Philosophy & Thoughts)', file: 'HSK4_Unit6.csv' }
             ]
           },
           'hsk_5': {
-            title: 'HSK 5级',
+            title: 'HSK 5级 (1300词)',
             units: [
-              { name: '第1课 爱的细节', file: 'HSK5_L1.csv' }
+              { name: '第1单元 个人修养与品质 (Personality & Morals)', file: 'HSK5_Unit1.csv' },
+              { name: '第2单元 社会生活与人际 (Social Life & Relations)', file: 'HSK5_Unit2.csv' },
+              { name: '第3单元 职场管理与经贸 (Management & Trade)', file: 'HSK5_Unit3.csv' },
+              { name: '第4单元 科学技术与教育 (Science & Education)', file: 'HSK5_Unit4.csv' },
+              { name: '第5单元 文学艺术与历史 (Literature & History)', file: 'HSK5_Unit5.csv' }
             ]
           },
           'hsk_6': {
-            title: 'HSK 6级',
+            title: 'HSK 6级 (2500词)',
             units: [
-              { name: '第1课 哲学与生活', file: 'HSK6_L1.csv' }
+              { name: '第1单元 社会热点与时事 (Social Focus & News)', file: 'HSK6_Unit1.csv' },
+              { name: '第2单元 思想哲学与伦理 (Philosophy & Ethics)', file: 'HSK6_Unit2.csv' },
+              { name: '第3单元 科技创新与学术 (Innovation & Academia)', file: 'HSK6_Unit3.csv' },
+              { name: '第4单元 经济金融与国际 (Finance & Global Affairs)', file: 'HSK6_Unit4.csv' },
+              { name: '第5单元 文学经典与历史 (Classics & Heritage)', file: 'HSK6_Unit5.csv' }
             ]
           }
         }
@@ -1058,8 +1220,8 @@
     var activeUnitFile = '';
 
     // 本地存储
-    var STORAGE_KEY = 'CHINESE_VOCAB_LESSONS_STORE_V5';
-    var CURRENT_LESSON_KEY = 'CHINESE_CURRENT_LESSON_ID_V5';
+    var STORAGE_KEY = 'CHINESE_VOCAB_LESSONS_STORE_V6';
+    var CURRENT_LESSON_KEY = 'CHINESE_CURRENT_LESSON_ID_V6';
 
     var lessonsStore = {};
     var currentLessonId = '';
@@ -1068,14 +1230,13 @@
     var currentCardIndex = 0;
     var isFlipped = false;
 
-    // 1级：切换大教材系列 (新目标/HSK/会话360/BCT)
+    // 1级：切换教材系列
     function switchSeries(seriesKey) {
       currentSeriesKey = seriesKey;
       document.querySelectorAll('.series-btn').forEach(function(b) { b.classList.remove('active'); });
       var activeBtn = document.getElementById('btn-series-' + seriesKey);
       if (activeBtn) activeBtn.classList.add('active');
 
-      // 联动更新 2级下拉菜单（册数/级别）
       populateBookSelect();
     }
 
@@ -1093,93 +1254,204 @@
       }
       bookSelect.innerHTML = html;
 
-      // 默认选择第一个或保持已选项
       if (!series.books[currentBookKey]) {
         currentBookKey = bookKeys[0];
       }
       bookSelect.value = currentBookKey;
 
-      // 联动更新 3级下拉菜单（单元/课文）
       populateUnitSelect();
     }
 
-    // 用户改变了“册数/级别”下拉菜单
     function onBookChange(bookKey) {
       currentBookKey = bookKey;
       populateUnitSelect();
     }
 
-    // 3级：填充“单元/课文”下拉菜单
+    // 3级：渲染可勾选的单元多选列表
     function populateUnitSelect() {
       var series = catalogTree[currentSeriesKey];
       var book = series.books[currentBookKey];
-      var unitSelect = document.getElementById('unit-select');
+      var listContainer = document.getElementById('unit-checkbox-list');
       if (!book || !book.units) return;
 
       var html = '';
       for (var i = 0; i < book.units.length; i++) {
         var u = book.units[i];
-        html += '<option value="' + u.file + '" data-name="' + u.name + '">' + u.name + '</option>';
+        // 默认选中匹配的单元或第 1 单元
+        var isChecked = (u.file === activeUnitFile || (i === 0 && !activeUnitFile)) ? 'checked' : '';
+        html += '<label class="unit-checkbox-item">' +
+                  '<input type="checkbox" value="' + u.file + '" data-name="' + u.name + '" ' + isChecked + ' onchange="updateSelectedTriggerText()">' +
+                  '<span>' + u.name + '</span>' +
+                '</label>';
       }
-      unitSelect.innerHTML = html;
+      listContainer.innerHTML = html;
+      updateSelectedTriggerText();
 
-      if (book.units.length > 0) {
-        var firstUnit = book.units[0];
-        // 如果当前是新目标2且有已选单元，优先匹配已选
-        var matched = book.units.find(function(item) { return item.file === activeUnitFile; });
-        var selectedItem = matched || firstUnit;
-        unitSelect.value = selectedItem.file;
-        loadCloudLesson(selectedItem.name, selectedItem.file);
+      // 默认加载首选单元
+      confirmUnitSelection(true);
+    }
+
+    // 切换多选下拉菜单开关
+    function toggleUnitDropdown(e) {
+      if (e) e.stopPropagation();
+      var menu = document.getElementById('unit-multiselect-menu');
+      var trigger = document.getElementById('unit-select-trigger');
+      var arrow = document.getElementById('unit-arrow-icon');
+      var isOpen = menu.classList.contains('open');
+
+      if (isOpen) {
+        menu.classList.remove('open');
+        trigger.classList.remove('active');
+        arrow.classList.remove('rotated');
+      } else {
+        menu.classList.add('open');
+        trigger.classList.add('active');
+        arrow.classList.add('rotated');
       }
     }
 
-    // 用户改变了“单元/课文”下拉菜单
-    function onUnitChange(file) {
-      var unitSelect = document.getElementById('unit-select');
-      var selectedOption = unitSelect.options[unitSelect.selectedIndex];
-      var lessonName = selectedOption.getAttribute('data-name') || selectedOption.text;
-      loadCloudLesson(lessonName, file);
+    // 点击外侧自动收起下拉菜单
+    document.addEventListener('click', function(e) {
+      var wrapper = document.getElementById('multiselect-wrapper');
+      var menu = document.getElementById('unit-multiselect-menu');
+      var trigger = document.getElementById('unit-select-trigger');
+      var arrow = document.getElementById('unit-arrow-icon');
+      if (wrapper && !wrapper.contains(e.target) && menu.classList.contains('open')) {
+        menu.classList.remove('open');
+        trigger.classList.remove('active');
+        arrow.classList.remove('rotated');
+      }
+    });
+
+    // 全选 / 清空操作
+    function selectAllUnits(check) {
+      var checkboxes = document.querySelectorAll('#unit-checkbox-list input[type="checkbox"]');
+      checkboxes.forEach(function(cb) { cb.checked = check; });
+      updateSelectedTriggerText();
     }
 
-    // 自动通过 fetch 从 GitHub 仓库拉取 CSV 并在网页中立即生效
-    function loadCloudLesson(lessonName, fileName) {
-      activeUnitFile = fileName;
+    // 更新触发框内显示的文本
+    function updateSelectedTriggerText() {
+      var checkboxes = document.querySelectorAll('#unit-checkbox-list input[type="checkbox"]:checked');
+      var totalCheckboxes = document.querySelectorAll('#unit-checkbox-list input[type="checkbox"]');
+      var textSpan = document.getElementById('unit-select-text');
 
-      // 显示正在加载提示
-      document.getElementById('card-word').innerText = "加载中...";
-      document.getElementById('card-meaning').innerText = "正在从云端获取 " + lessonName + "...";
+      if (checkboxes.length === 0) {
+        textSpan.innerText = '⚠️ 请至少勾选一个单元';
+        textSpan.style.color = '#ef4444';
+      } else if (checkboxes.length === totalCheckboxes.length) {
+        textSpan.innerText = '全选 (共 ' + checkboxes.length + ' 单元)';
+        textSpan.style.color = '#1e293b';
+      } else if (checkboxes.length === 1) {
+        textSpan.innerText = checkboxes[0].getAttribute('data-name');
+        textSpan.style.color = '#1e293b';
+      } else {
+        textSpan.innerText = '已勾选 ' + checkboxes.length + ' 个单元 (合并练习)';
+        textSpan.style.color = '#2563eb';
+      }
+    }
 
-      fetch('./' + fileName)
-        .then(function(res) {
-          if (!res.ok) {
-            throw new Error('未找到 ' + fileName + ' 文件 (HTTP ' + res.status + ')');
-          }
-          return res.text();
-        })
-        .then(function(csvText) {
-          var words = parseCustomText(csvText);
-          if (words.length === 0) {
-            alert('文件解析为空，请检查 CSV 内容！');
-            return;
-          }
+    // 确认选择并加载单元（支持单选、部分多选、全选合并）
+    function confirmUnitSelection(silent) {
+      var checkedBoxes = document.querySelectorAll('#unit-checkbox-list input[type="checkbox"]:checked');
+      if (checkedBoxes.length === 0) {
+        if (!silent) alert('请至少勾选一个要练习的单元！');
+        return;
+      }
 
-          var lessonId = 'cloud_' + fileName.replace(/[^a-zA-Z0-9]/g, '_');
-          lessonsStore[lessonId] = {
-            id: lessonId,
-            title: lessonName,
-            words: words
-          };
+      // 收起下拉菜单
+      var menu = document.getElementById('unit-multiselect-menu');
+      var trigger = document.getElementById('unit-select-trigger');
+      var arrow = document.getElementById('unit-arrow-icon');
+      if (menu) menu.classList.remove('open');
+      if (trigger) trigger.classList.remove('active');
+      if (arrow) arrow.classList.remove('rotated');
 
-          saveStore();
-          changeLesson(lessonId);
-          switchTab('flashcard');
-        })
-        .catch(function(err) {
-          console.warn("Fetch failed:", err);
-          alert('⚠️ 未能在线加载该文件 (' + fileName + ')。\n请确认该 CSV 文件已上传到您 GitHub 仓库的根目录下！');
-          document.getElementById('card-word').innerText = "加载失败";
-          document.getElementById('card-meaning').innerText = "请确认 " + fileName + " 已上传至 GitHub 仓库";
+      var selectedList = [];
+      checkedBoxes.forEach(function(cb) {
+        selectedList.push({
+          file: cb.value,
+          name: cb.getAttribute('data-name')
         });
+      });
+
+      loadCombinedUnits(selectedList);
+    }
+
+    // 多单元异步并发拉取与合并处理核心
+    function loadCombinedUnits(units) {
+      if (!units || units.length === 0) return;
+
+      var series = catalogTree[currentSeriesKey];
+      var book = series.books[currentBookKey];
+      var bookTitle = book ? book.title : '课程';
+
+      var loadingTitle = units.length === 1 ? units[0].name : (bookTitle + ' · 多单元合并 (' + units.length + '个单元)');
+      document.getElementById('card-word').innerText = "加载中...";
+      document.getElementById('card-meaning').innerText = "正在从云端拉取生词数据，请稍候...";
+
+      var promises = units.map(function(u) {
+        return fetch('./' + u.file)
+          .then(function(res) {
+            if (!res.ok) throw new Error('未找到 ' + u.file);
+            return res.text();
+          })
+          .then(function(csvText) {
+            return {
+              unit: u,
+              words: parseCustomText(csvText)
+            };
+          })
+          .catch(function(err) {
+            console.warn('拉取文件失败:', u.file, err);
+            return { unit: u, words: [] };
+          });
+      });
+
+      Promise.all(promises).then(function(results) {
+        var allCombinedWords = [];
+        var successUnits = [];
+        var idCounter = 1;
+
+        results.forEach(function(r) {
+          if (r.words && r.words.length > 0) {
+            successUnits.push(r.unit.name.split(' ')[0]);
+            r.words.forEach(function(w) {
+              allCombinedWords.push({
+                id: idCounter++,
+                word: w.word,
+                pinyin: w.pinyin,
+                pos: w.pos,
+                en: w.en,
+                exZh: w.exZh,
+                exEn: w.exEn
+              });
+            });
+          }
+        });
+
+        if (allCombinedWords.length === 0) {
+          alert('未能成功拉取所选单元的词汇，请检查对应 CSV 文件是否已上传至仓库根目录！');
+          document.getElementById('card-word').innerText = "加载失败";
+          document.getElementById('card-meaning').innerText = "请检查 CSV 文件上传";
+          return;
+        }
+
+        var combinedLessonId = 'multi_' + Date.now();
+        var finalTitle = units.length === 1 
+          ? units[0].name 
+          : (bookTitle + ' (已选' + units.length + '单元: ' + successUnits.join(', ') + ')');
+
+        lessonsStore[combinedLessonId] = {
+          id: combinedLessonId,
+          title: finalTitle,
+          words: allCombinedWords
+        };
+
+        saveStore();
+        changeLesson(combinedLessonId);
+        switchTab('flashcard');
+      });
     }
 
     // --- 本地数据与状态初始化 ---
@@ -1193,7 +1465,6 @@
         lessonsStore = {};
       }
 
-      // 默认开启新目标口语 -> 新目标2 -> 第8单元
       currentSeriesKey = 'newtarget';
       currentBookKey = 'nt_2';
       activeUnitFile = 'Unit8_Web_Import.csv';
@@ -1449,82 +1720,105 @@
       renderCard();
     }
 
-    // --- 全平台通用无缝发音引擎 (完美兼容微信/各大手机浏览器/无中文语音包设备) ---
-    var ttsAudio = new Audio();
-    var cachedVoices = [];
+    // --- 全兼容多重灾备发音引擎 ---
+    var globalTtsAudio = new Audio();
     var activeUtterance = null;
-    var audioUnlocked = false;
-
-    // 页面首次任意触碰时解锁移动端音频播放通道 (iOS/Android 自动化策略解锁)
-    function unlockAudioContext() {
-      if (audioUnlocked) return;
-      ttsAudio.load();
-      audioUnlocked = true;
-    }
-    window.addEventListener('touchstart', unlockAudioContext, { once: true, passive: true });
-    window.addEventListener('click', unlockAudioContext, { once: true, passive: true });
+    var voicesList = [];
 
     function initSpeechEngine() {
       if ('speechSynthesis' in window) {
-        cachedVoices = window.speechSynthesis.getVoices();
-        if (window.speechSynthesis.onvoiceschanged !== undefined) {
-          window.speechSynthesis.onvoiceschanged = function() {
-            cachedVoices = window.speechSynthesis.getVoices();
-          };
-        }
+        try {
+          voicesList = window.speechSynthesis.getVoices() || [];
+          if (window.speechSynthesis.onvoiceschanged !== undefined) {
+            window.speechSynthesis.onvoiceschanged = function() {
+              voicesList = window.speechSynthesis.getVoices() || [];
+            };
+          }
+        } catch (e) {}
       }
     }
 
-    // 检测本地是否有可用的系统中文语音包
-    function hasLocalChineseVoice() {
-      if (!('speechSynthesis' in window)) return false;
-      var voices = cachedVoices && cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();
-      if (!voices || voices.length === 0) return false;
-      return voices.some(function(v) {
-        var lang = (v.lang || '').toLowerCase();
-        var name = (v.name || '').toLowerCase();
-        return lang.indexOf('zh') === 0 || lang.indexOf('cmn') !== -1 || name.indexOf('chinese') !== -1;
-      });
-    }
+    function pickChineseVoice() {
+      if (!voicesList || voicesList.length === 0) {
+        if ('speechSynthesis' in window) {
+          voicesList = window.speechSynthesis.getVoices() || [];
+        }
+      }
+      if (!voicesList || voicesList.length === 0) return null;
 
-    function getLocalChineseVoice() {
-      var voices = cachedVoices && cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();
-      if (!voices || voices.length === 0) return null;
-      return voices.find(function(v) {
-        var lang = (v.lang || '').toLowerCase();
-        return lang === 'zh-cn' || lang === 'zh_cn';
-      }) || voices.find(function(v) {
-        var lang = (v.lang || '').toLowerCase();
-        return lang.indexOf('zh') === 0 || lang.indexOf('cmn') !== -1;
+      return voicesList.find(function(v) {
+        var l = (v.lang || '').toLowerCase();
+        return l === 'zh-cn' || l === 'zh_cn';
+      }) || voicesList.find(function(v) {
+        var l = (v.lang || '').toLowerCase();
+        return l.indexOf('zh') === 0 || l.indexOf('cmn') !== -1;
+      }) || voicesList.find(function(v) {
+        var n = (v.name || '').toLowerCase();
+        return n.indexOf('chinese') !== -1 || n.indexOf('mandarin') !== -1;
       }) || null;
     }
 
-    // 统一发音主调度：多通道智能容灾（免除必须 Safari 或 Chrome 才能发音的限制）
-    function speakText(text) {
-      if (!text) return;
-      // 清洗文本中的多余换行与特殊排版符号
-      var cleanText = text.replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
-      if (!cleanText) return;
-
-      // 提取纯朗读文本（生词、句子均可直接发音，去除句末异常标点干扰）
-      var spokenQuery = cleanText.replace(/[。，！？、“”‘’；：]/g, ' ').trim();
-      var encoded = encodeURIComponent(spokenQuery || cleanText);
-
-      // 云端高保真普通话音频源候选列表 (针对微信、UC、夸克、华为/小米内置浏览器等无系统语音包环境)
-      var audioSources = [
+    function playCloudAudioStream(text, onComplete) {
+      var clean = text.replace(/[。，！？、“”‘’；：\r\n\t]/g, ' ').trim();
+      var encoded = encodeURIComponent(clean || text);
+      
+      var cdnUrls = [
         'https://dict.youdao.com/dictvoice?audio=' + encoded + '&le=zh',
         'https://fanyi.baidu.com/gettts?lan=zh&text=' + encoded + '&spd=5&source=web',
         'https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=' + encoded
       ];
-      var currentSourceIdx = 0;
+      var idx = 0;
 
-      // 决策树：
-      // 1. 如果当前设备/浏览器有可靠的本地中文系统语音包 (如 Safari, 原生桌面 Chrome)，优先本地秒出声；
-      // 2. 如果是微信内置浏览器，或者手机系统没有安装中文语音包（大量安卓第三方浏览器常见），立即同步切云端原声音频流。
+      function tryNextCdn() {
+        if (idx >= cdnUrls.length) {
+          if (onComplete) onComplete();
+          return;
+        }
+        var currentUrl = cdnUrls[idx++];
+        globalTtsAudio.pause();
+        globalTtsAudio.currentTime = 0;
+        globalTtsAudio.src = currentUrl;
+
+        globalTtsAudio.onended = function() {
+          if (onComplete) onComplete();
+        };
+
+        globalTtsAudio.onerror = function() {
+          tryNextCdn();
+        };
+
+        var p = globalTtsAudio.play();
+        if (p !== undefined) {
+          p.catch(function(err) {
+            tryNextCdn();
+          });
+        }
+      }
+
+      tryNextCdn();
+    }
+
+    function speakText(text, btnElement) {
+      if (!text) return;
+      var cleanText = text.replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!cleanText) return;
+
+      var originalBtnText = '';
+      if (btnElement) {
+        originalBtnText = btnElement.innerText;
+        btnElement.innerText = '🔊 播放中...';
+      }
+
+      function restoreBtn() {
+        if (btnElement && originalBtnText) {
+          btnElement.innerText = originalBtnText;
+        }
+      }
+
       var isWeChat = /MicroMessenger/i.test(navigator.userAgent);
-      var canUseLocalSynth = !isWeChat && hasLocalChineseVoice();
+      var canUseSynth = !isWeChat && ('speechSynthesis' in window) && (typeof SpeechSynthesisUtterance !== 'undefined');
 
-      if (canUseLocalSynth) {
+      if (canUseSynth) {
         try {
           if (window.speechSynthesis.paused) {
             window.speechSynthesis.resume();
@@ -1536,75 +1830,61 @@
           utterance.rate = 0.86;
           utterance.pitch = 1.0;
 
-          var zhVoice = getLocalChineseVoice();
+          var zhVoice = pickChineseVoice();
           if (zhVoice) {
             utterance.voice = zhVoice;
           }
 
           activeUtterance = utterance;
-          utterance.onend = function() { activeUtterance = null; };
-          utterance.onerror = function() {
+
+          var synthStarted = false;
+          utterance.onstart = function() {
+            synthStarted = true;
+          };
+
+          utterance.onend = function() {
             activeUtterance = null;
-            playWithCloudAudio();
+            restoreBtn();
+          };
+
+          utterance.onerror = function(e) {
+            console.warn('本地语音合成异常，切换云端音频:', e);
+            activeUtterance = null;
+            playCloudAudioStream(cleanText, restoreBtn);
           };
 
           window.speechSynthesis.speak(utterance);
-          return;
-        } catch (e) {
-          playWithCloudAudio();
-          return;
+
+          setTimeout(function() {
+            if (!synthStarted && activeUtterance) {
+              window.speechSynthesis.cancel();
+              activeUtterance = null;
+              playCloudAudioStream(cleanText, restoreBtn);
+            }
+          }, 600);
+
+        } catch (err) {
+          console.warn('本地调用异常，切云端音频:', err);
+          playCloudAudioStream(cleanText, restoreBtn);
         }
       } else {
-        // 无本地中文包时，同步触发 HTML5 Audio 播放（绝不进入异步等待，确保手势凭据永不失效）
-        playWithCloudAudio();
-      }
-
-      function playWithCloudAudio() {
-        if (currentSourceIdx >= audioSources.length) {
-          // 所有云端源若不可用，最后尝试调用一次本地合成
-          tryFallbackSpeechSynth();
-          return;
-        }
-
-        ttsAudio.pause();
-        ttsAudio.currentTime = 0;
-        ttsAudio.src = audioSources[currentSourceIdx];
-
-        ttsAudio.onerror = function() {
-          currentSourceIdx++;
-          playWithCloudAudio();
-        };
-
-        var p = ttsAudio.play();
-        if (p !== undefined) {
-          p.catch(function(err) {
-            currentSourceIdx++;
-            playWithCloudAudio();
-          });
-        }
-      }
-
-      function tryFallbackSpeechSynth() {
-        if ('speechSynthesis' in window) {
-          try {
-            window.speechSynthesis.cancel();
-            var utt = new SpeechSynthesisUtterance(cleanText);
-            utt.lang = 'zh-CN';
-            window.speechSynthesis.speak(utt);
-          } catch (e) {}
-        }
+        playCloudAudioStream(cleanText, restoreBtn);
       }
     }
 
     function speakCurrent(e) {
       if (e && e.stopPropagation) e.stopPropagation();
-      if (currentVocabList[currentCardIndex]) speakText(currentVocabList[currentCardIndex].word);
+      var btn = document.getElementById('audio-word-btn');
+      if (currentVocabList[currentCardIndex]) {
+        speakText(currentVocabList[currentCardIndex].word, btn);
+      }
     }
 
     function speakExample(e) {
       if (e && e.stopPropagation) e.stopPropagation();
+      var btn = document.getElementById('audio-ex-btn');
       if (currentVocabList[currentCardIndex] && currentVocabList[currentCardIndex].exZh) {
-        speakText(currentVocabList[currentCardIndex].exZh);
+        speakText(currentVocabList[currentCardIndex].exZh, btn);
       }
     }
 
@@ -1653,7 +1933,7 @@
 
     function initQuiz() {
       if (currentVocabList.length < 4) {
-        document.getElementById('quiz-feedback').innerHTML = '<p style="color:var(--accent); font-weight:bold;">⚠️ 当前单元词汇不足 4 个，无法生成测试。请先在上方选择单元！</p>';
+        document.getElementById('quiz-feedback').innerHTML = '<p style="color:var(--accent); font-weight:bold;">⚠️ 当前词汇不足 4 个，无法生成测试。请勾选更多单元！</p>';
         document.getElementById('quiz-options').innerHTML = '';
         document.getElementById('q-main').innerText = '词汇不足';
         document.getElementById('q-sub').innerText = '';
